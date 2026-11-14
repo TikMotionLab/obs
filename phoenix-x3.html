@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>PHOENIX X3</title>
+<style>
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; }
+  video { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: contain; background: transparent; }
+  #tap { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); display: none; cursor: pointer;
+         font: 600 22px/1.3 system-ui, sans-serif; color: #fff; background: rgba(0, 0, 0, .6);
+         padding: 14px 22px; border-radius: 12px; }
+</style>
+</head>
+<body>
+<video id="v" playsinline preload="auto"></video>
+<div id="tap">Click pentru redare cu sunet</div>
+<script>
+(async () => {
+  const q = new URLSearchParams(location.search);
+  const h = new URLSearchParams(location.hash.slice(1));
+  const loop = q.has("loop");
+  if (q.get("bg")) document.documentElement.style.background = q.get("bg");
+  const v = document.getElementById("v"), tap = document.getElementById("tap");
+  const k = (h.get("k") || "").replace(/-/g, "+").replace(/_/g, "/");
+  if (!k) return;                                         // fara cheie: pagina ramane goala
+  let url;
+  try {
+    const raw = Uint8Array.from(atob(k + "===".slice((k.length + 3) % 4)), c => c.charCodeAt(0));
+    const key = await crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["decrypt"]);
+    const r = await fetch("phoenix-x3.bin", { cache: "force-cache" });
+    const data = new Uint8Array(await r.arrayBuffer());
+    const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: data.subarray(0, 12) }, key, data.subarray(12));
+    url = URL.createObjectURL(new Blob([plain], { type: "video/webm" }));
+  } catch (e) { console.error("cheie gresita sau fisier lipsa", e); return; }
+  v.loop = loop;
+  v.src = url;
+  v.addEventListener("ended", () => { if (!loop) v.style.visibility = "hidden"; });
+  try {
+    await v.play();                                       // in OBS porneste singur, cu sunet
+  } catch (e) {                                           // browser obisnuit: redarea automata cu sunet e blocata
+    tap.style.display = "block";
+    tap.addEventListener("click", () => { tap.style.display = "none"; v.style.visibility = "visible"; v.currentTime = 0; v.play(); }, { once: true });
+  }
+})();
+</script>
+</body>
+</html>
